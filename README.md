@@ -189,6 +189,3 @@ See `docs/full-guide.md` for expanded troubleshooting, queue consumer tips, and 
 - Redis docs: https://redis.io/documentation
 
 ---
-
-**Document history**
-- 2025-10-02 – Complete runbook authored (Codex).
