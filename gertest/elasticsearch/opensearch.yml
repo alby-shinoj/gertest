@@ -1,0 +1,8 @@
+cluster.name: magento-cluster
+node.name: node-1
+path.data: /usr/share/opensearch/data
+path.logs: /usr/share/opensearch/logs
+network.host: 0.0.0.0
+discovery.type: single-node
+plugins.security.disabled: true
+http.port: 9200

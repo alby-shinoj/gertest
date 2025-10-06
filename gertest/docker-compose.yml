@@ -1,0 +1,144 @@
+version: "3.9"
+
+services:
+  mysql:
+    build: ./mysql
+    image: m2-mysql:latest
+    container_name: m2-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: magento
+      MYSQL_DATABASE: magento
+      MYSQL_USER: magento
+      MYSQL_PASSWORD: magento
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -pmagento"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - magento
+
+  redis:
+    build: ./redis
+    image: m2-redis:latest
+    container_name: m2-redis
+    command: ["redis-server", "/etc/redis/redis.conf"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - magento
+
+  elasticsearch:
+    build: ./elasticsearch
+    image: m2-elasticsearch:latest
+    container_name: m2-elasticsearch
+    environment:
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elasticsearch-data:/var/lib/elasticsearch
+      - ./elasticsearch/elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml:ro
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - magento
+
+  php-fpm:
+    build: ./php-fpm
+    image: m2-php-fpm:latest
+    container_name: m2-php-fpm
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - magento-app:/var/www/magento
+      - phpmyadmin-app:/var/www/phpmyadmin
+      - ./php-fpm/crontab-magento:/etc/cron.d/magento
+    networks:
+      - magento
+
+  nginx-backend:
+    build: ./nginx-backend
+    image: m2-nginx-backend:latest
+    container_name: m2-nginx-backend
+    depends_on:
+      php-fpm:
+        condition: service_started
+    volumes:
+      - magento-app:/var/www/magento:ro
+      - phpmyadmin-app:/var/www/phpmyadmin:ro
+      - ./nginx-backend/magento.conf:/etc/nginx/sites-enabled/magento.conf:ro
+      - ./nginx-backend/phpmyadmin.conf:/etc/nginx/sites-enabled/phpmyadmin.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health-check.php || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - magento
+
+  varnish:
+    build: ./varnish
+    image: m2-varnish:latest
+    container_name: m2-varnish
+    depends_on:
+      nginx-backend:
+        condition: service_healthy
+    command: ["varnishd", "-F", "-f", "/etc/varnish/default.vcl", "-a", ":6081", "-s", "file,/var/lib/varnish/varnish_storage.bin,1G"]
+    volumes:
+      - varnish-cache:/var/lib/varnish
+      - ./varnish/default.vcl:/etc/varnish/default.vcl:ro
+    networks:
+      - magento
+
+  nginx-ssl:
+    build: ./nginx-ssl
+    image: m2-nginx-ssl:latest
+    container_name: m2-nginx-ssl
+    depends_on:
+      varnish:
+        condition: service_started
+      nginx-backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-ssl/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx-ssl/certs:/etc/nginx/certs:ro
+    networks:
+      - magento
+
+volumes:
+  magento-app:
+  phpmyadmin-app:
+  mysql-data:
+  redis-data:
+  elasticsearch-data:
+  varnish-cache:
+
+networks:
+  magento:
+    driver: bridge
