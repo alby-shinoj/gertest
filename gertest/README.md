@@ -183,12 +183,8 @@ See `docs/full-guide.md` for expanded troubleshooting, queue consumer tips, and 
 ---
 
 ## 10. Additional Resources
-- [docs/full-guide.md](docs/full-guide.md) – complete narrative including architecture diagrams, backups, and extension notes.
 - Magento dev docs: https://developer.adobe.com/commerce
 - Elasticsearch reference: https://www.elastic.co/guide/index.html
 - Redis docs: https://redis.io/documentation
 
 ---
-
-**Document history**
-- 2025-10-02 – Complete runbook authored (Codex).
